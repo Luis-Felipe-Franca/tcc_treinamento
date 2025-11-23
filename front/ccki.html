@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Envio de Imagem</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f4f4;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 6px;
+            width: 350px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h2 {
+            margin-top: 0;
+            font-weight: normal;
+            text-align: center;
+        }
+        input[type="text"],
+        input[type="file"] {
+            width: 100%;
+            padding: 8px;
+            margin: 6px 0 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background: #0078d7;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 5px;
+        }
+        button:hover {
+            background: #005ea3;
+        }
+        #result {
+            margin-top: 20px;
+            display: none;
+            text-align: center;
+        }
+        .btn-small {
+            width: 100%;
+            padding: 8px;
+            background: #444;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            margin-top: 8px;
+            cursor: pointer;
+        }
+        .btn-small:hover {
+            background: #222;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Envio de Análise</h2>
+
+    <form id="uploadForm">
+        <label>Pergunta 1</label>
+        <input type="text" id="pergunta1" name="pergunta1" required>
+
+        <label>Pergunta 2</label>
+        <input type="text" id="pergunta2" name="pergunta2" required>
+
+        <label>Pergunta 3</label>
+        <input type="text" id="pergunta3" name="pergunta3" required>
+
+        <label>Imagem</label>
+        <input type="file" id="fileInput" name="file" accept="image/jpeg" required>
+
+        <button type="submit">Enviar</button>
+    </form>
+
+    <div id="result">
+        <button class="btn-small" id="btnDownload">Baixar PDF</button>
+        <button class="btn-small" id="btnFormulario">Novo Formulário</button>
+    </div>
+</div>
+
+<script>
+    const form = document.getElementById("uploadForm");
+    const resultSection = document.getElementById("result");
+
+    form.addEventListener("submit", async function(e) {
+        e.preventDefault();
+
+        const fileInput = document.getElementById("fileInput");
+        if (!fileInput.files.length) {
+            alert("Por favor, selecione uma imagem JPEG.");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", fileInput.files[0]);
+        formData.append("pergunta1", document.getElementById("pergunta1").value);
+        formData.append("pergunta2", document.getElementById("pergunta2").value);
+        formData.append("pergunta3", document.getElementById("pergunta3").value);
+
+        try {
+            const response = await fetch("http://localhost:8000/uploadPhoto", {
+                method: "POST",
+                body: formData
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                console.log("Resposta da API:", data);
+
+                // Mostra os botões
+                resultSection.style.display = "block";
+
+                // Esconde o formulário
+                form.style.display = "none";
+
+                // Botão de download do PDF
+                document.getElementById("btnDownload").onclick = async () => {
+                    try {
+                        const pdfUrl = "http://localhost:8000/download/resultado.pdf";
+                        const pdfResponse = await fetch(pdfUrl);
+                        if (!pdfResponse.ok) throw new Error("Erro ao baixar PDF.");
+
+                        const blob = await pdfResponse.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = "resultado.pdf";
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                        window.URL.revokeObjectURL(url);
+                    } catch (err) {
+                        alert("Não foi possível baixar o PDF.");
+                        console.error(err);
+                    }
+                };
+
+                // Botão de novo formulário
+                document.getElementById("btnFormulario").onclick = () => {
+                    form.reset();
+                    form.style.display = "block";
+                    resultSection.style.display = "none";
+                };
+
+            } else {
+                const err = await response.json();
+                alert("Erro: " + err.detail);
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Erro de conexão com o servidor.");
+        }
+    });
+</script>
+
+</body>
+</html>
