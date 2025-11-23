@@ -1,69 +1,43 @@
 import subprocess 
 from datetime import datetime
 import shutil
-import torch
 import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
-import segmentation_models_pytorch as smp
-from torchvision import transforms
 from fpdf import FPDF
 import os
+from ultralytics import YOLO
 
 
 
 def do_inference(photo_path: str):
 
-    device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+    model = YOLO('best.pt')
+    
+    results = model.predict(source=photo_path, conf=0.3)
+    
+    result = results[0]
     
     image = Image.open(photo_path).convert("RGB")
     image_np = np.array(image)
     
-    transform = transforms.Compose([transforms.ToTensor()])
-    input_tensor = transform(image).unsqueeze(0).to(device)
+    annotated_image = result.plot()
     
-    model = smp.Unet(
-        encoder_name="resnet34",
-        encoder_weights=None,
-        in_channels=3,
-        classes=1
-    )
-    MODEL_PATH = '../model.pth'
-    model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
-    model.to(device)
-    model.eval()
-    
-    with torch.no_grad():
-        pred = model(input_tensor)
-        pred = torch.sigmoid(pred)
-        pred = (pred > 0.5).float()
-    
-    pred_np = pred.squeeze().cpu().numpy()
-    
-    mask_np = None
-    
-    overlay = np.copy(image_np)
-
-    overlay[pred_np == 1] = [255, 0, 0]
-
-    if mask_np is not None:
-        overlay[mask_np == 1] = [255, 255, 0]
-    
-    alpha = 0.4
-    final_image = (image_np * (1 - alpha) + overlay * alpha).astype(np.uint8)
+    if annotated_image is not None:
+        final_image = annotated_image[..., ::-1]
+    else:
+        final_image = image_np
     
     plt.figure(figsize=(10, 5))
     plt.imshow(final_image)
-    plt.title("Segmentação (Vermelho = Predição, Amarelo = Real)")
+    plt.title("Detecção YOLO")
     plt.axis("off")
     
     result_path = f"results/{datetime.now().strftime('%f%d%H%Y%m%S')}.png"
     plt.savefig(result_path)
+    plt.close()
     
     return result_path
-
-
-
 
 
 def git_pull():
@@ -73,8 +47,7 @@ def git_pull():
                     capture_output = True,
                     text = True
                     )    
-    
-    
+     
 
 def git_add(file_path:str):
     
@@ -82,8 +55,7 @@ def git_add(file_path:str):
                     check = True,
                     capture_output = True,
                     text = True
-                    )    
-    
+                    )        
     
 
 def commit_and_push(file_path:str, commit_message:str):
@@ -104,7 +76,6 @@ def commit_and_push(file_path:str, commit_message:str):
                     )
     
 
-
 def sync_photo(photo_path:str):
     
     git_pull()
@@ -120,10 +91,6 @@ def sync_photo(photo_path:str):
                     )
     
     
-    
-    
-    
-
 def gerar_pdf(pergunta1:str,
               pergunta2:str, 
               pergunta3:str, 
@@ -135,13 +102,11 @@ def gerar_pdf(pergunta1:str,
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
 
-    # Carrega fonte com suporte UTF-8
-    font_path = "/Library/Fonts/Arial Unicode.ttf"
-    if not os.path.exists(font_path):
-        raise FileNotFoundError(f"Fonte não encontrada: {font_path}")
+    # Usa apenas 'fonts/DejaVuSans.ttf' dentro da pasta `api\fonts`.
+    dejavu_path = os.path.join(os.path.dirname(__file__), "fonts", "DejaVuSans.ttf")
     
-    pdf.add_font("ArialUni", "", font_path, uni=True)
-    pdf.set_font("ArialUni", "", 13)
+    pdf.add_font("AppFont", "", dejavu_path, uni=True)
+    pdf.set_font("AppFont", "", 13)
 
     # Estilo
     primary = (40, 60, 120)
@@ -153,7 +118,7 @@ def gerar_pdf(pergunta1:str,
 
     # Título
     pdf.set_text_color(*primary)
-    pdf.set_font("ArialUni", "", 20)
+    pdf.set_font("AppFont", "", 20)
     pdf.cell(0, 12, "Relatório de Respostas", ln=True, align="C")
     pdf.ln(4)
 
@@ -162,16 +127,16 @@ def gerar_pdf(pergunta1:str,
     pdf.line(30, 28, 180, 28)
     pdf.ln(8)
 
-    pdf.set_font("ArialUni", "", 13)
+    pdf.set_font("AppFont", "", 13)
     pdf.set_text_color(*text)
 
     # Função bloca perguntas
     def bloco(pergunta, texto):
-        pdf.set_font("ArialUni", "", 14)
+        pdf.set_font("AppFont", "", 14)
         pdf.set_text_color(*primary)
         pdf.cell(0, 8, f"• {pergunta}", ln=True)
 
-        pdf.set_font("ArialUni", "", 12)
+        pdf.set_font("AppFont", "", 12)
         pdf.set_text_color(*text)
         pdf.multi_cell(0, 7, texto)
         pdf.ln(3)
@@ -181,7 +146,7 @@ def gerar_pdf(pergunta1:str,
     bloco("Pergunta 3:", pergunta3)
 
     # Imagem
-    pdf.set_font("ArialUni", "", 14)
+    pdf.set_font("AppFont", "", 14)
     pdf.set_text_color(*primary)
     pdf.cell(0, 8, "Imagem enviada:", ln=True)
     pdf.ln(2)
@@ -197,7 +162,7 @@ def gerar_pdf(pergunta1:str,
 
     # Rodapé
     pdf.set_y(-15)
-    pdf.set_font("ArialUni", "", 9)
+    pdf.set_font("AppFont", "", 9)
     pdf.set_text_color(120, 120, 120)
     pdf.cell(0, 10, "Gerado automaticamente • © 2025", align="C")
 

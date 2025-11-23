@@ -3,8 +3,9 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import os
 from _utils import sync_photo, do_inference, gerar_pdf
+import zipfile
 
-
+#pip install fastapi uvicorn ultralytics pillow matplotlib fpdf2 python-multipart
 
 ##### GLOBALS #######
 
@@ -27,8 +28,6 @@ app.add_middleware(CORSMiddleware,
                     allow_headers=["*"],
                     )
 
-
-
 @app.post('/uploadPhoto')
 async def upload_image(file: UploadFile = File(...),    
                        pergunta1: str = Form(...),
@@ -38,9 +37,9 @@ async def upload_image(file: UploadFile = File(...),
 
     print(file.content_type)
 
-    if file.content_type != 'image/jpeg':
+    if file.content_type not in ['image/jpeg', 'image/png']:
         raise HTTPException(status_code =400, 
-                            detail = 'O arquivo deve ser uma imagem PNG'
+                            detail = 'O arquivo deve ser uma imagem jpeg ou png'
                             )
 
     photo_path = os.path.join(UPLOAD_DIR, file.filename)
@@ -58,11 +57,19 @@ async def upload_image(file: UploadFile = File(...),
               result_photo_path
               )
     
-    return {'message': 'Foto recebida!', 
-            'filename': file.filename
-            }
-
-
+    # Opção 1: Retornar apenas o PDF
+    return FileResponse('results/resultado.pdf',
+                       media_type='application/pdf',
+                       filename='resultado.pdf')
+    
+    # Opção 2: Retornar ZIP com PDF + imagem (comentado para ter como opção depois)
+    # with zipfile.ZipFile('results/resultado.zip', 'w') as zf:
+    #     zf.write(result_photo_path, arcname='imagem.png')
+    #     zf.write('results/resultado.pdf', arcname='resultado.pdf')
+    # 
+    # return FileResponse('results/resultado.zip',
+    #                    media_type='application/zip',
+    #                    filename='resultado.zip')
 
 
 @app.get("/availableFiles")
@@ -104,3 +111,12 @@ async def download_image(filename: str):
     
 #     import uvicorn
 #     uvicorn.run('main:app', port=8080, reload=True)
+
+
+
+
+
+
+
+#uvicorn main:app --reload --port 8080  
+#^^^faz questao de rodar isso no terminal, na pasta certa
